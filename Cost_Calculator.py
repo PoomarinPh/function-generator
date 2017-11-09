@@ -5,7 +5,12 @@ import random
 
 class Cost_Calculator:
     def __init__(self, correctExpression, parameters, usingFile=False):
-
+        """
+        Initialize cost calculator.
+        :param correctExpression (String): Correct expression e.g. "2*X+3*Y"
+        :param parameters (List<String>): List of available (case sensitive) variables e.g. ['X','Y']
+        :param usingFile (Bool): True to use file-writing to calculate expression result
+        """
         self.outputDifferenceWeight = 1 # Multiply to the difference
         self.outputCompilableWeight = +150 #
         self.differenceCap = np.exp(100) # More than or less than negative of this will be capped
@@ -15,6 +20,11 @@ class Cost_Calculator:
         self.usingFile = usingFile
 
     def calReward(self, expression):
+        """
+        Calculate reward.
+        :param expression (String): Expression to compare to self.correctExpression
+        :return (Double): Reward (Negative = Bad, Positive = Good)
+        """
         compilableReward, differenceReward  = self.__calCompileAndDifferenceReward(expression)
         lengthReward = self.__calLengthReward(expression)
         print(differenceReward, compilableReward, lengthReward)
