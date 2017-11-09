@@ -1,4 +1,4 @@
-NAME = conference
+NAME = main
 
 all:
 	latex ${NAME}.tex
