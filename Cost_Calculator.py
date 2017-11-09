@@ -1,9 +1,11 @@
 #from Model_Output_Function import outputFunction
 import numpy as np
 import os
+import random
 
 class Cost_Calculator:
-    def __init__(self, parameters, correctExpression, usingFile=False):
+    def __init__(self, correctExpression, parameters, usingFile=False):
+
         self.outputDifferenceWeight = 1 # Multiply to the difference
         self.outputCompilableWeight = +150 #
         self.differenceCap = np.exp(100) # More than or less than negative of this will be capped
@@ -23,16 +25,40 @@ class Cost_Calculator:
         if self.usingFile:
             self.__editOutputFile(expression)
 
-        sumDiff = 0
+        sumDiff = 0.0
+        breakOut = False
         for x in range(30):
             for y in range(30):
                 try:
                     if self.usingFile:
-                            sumDiff += self.__calDifferenceWithFile(x,y)
+                        diff = self.__calDifferenceWithFile(x,y)
+                        # TODO Add using file
                     else:
-                        sumDiff += self.__calDifferenceWithEval(expression,x,y)
+                        diff = self.__calDifferenceWithEval(expression,x,y)
+                    print(diff)
+                    if self.differenceCap < diff:
+                        print("More")
+                        sumDiff = self.differenceCap
+                        breakOut = True
+                        break
+                    print("Less")
+                    sumDiff += diff
+                    if sumDiff > self.differenceCap:
+                        sumDiff = self.differenceCap
+                        breakout = True
+                        break
+                except NameError:
+                    return -self.outputCompilableWeight, 0
                 except SyntaxError:
                     return -self.outputCompilableWeight, 0
+                except ZeroDivisionError:
+                    return -self.outputCompilableWeight, 0 # Permanent Syntax Error
+                except OverflowError:
+                    sumDiff = self.differenceCap
+                    breakOut = True
+                    break
+            if breakOut:
+                break
 
         if sumDiff > self.differenceCap:
             sumDiff = self.differenceCap
@@ -45,7 +71,7 @@ class Cost_Calculator:
         return len(expression) * self.outputLengthWeight
 
     def __scaleValue(self, value):
-        return - np.log(value)
+        return -np.log(value)
 
     def __editOutputFile(self, expression):
         try:
@@ -65,7 +91,7 @@ class Cost_Calculator:
         pass
 
     def __calDifferenceWithEval(self, expression, X, Y):
-        ebsilon = 10 ** -100
+        ebsilon = 10 ** -30
 
         try:
             correctVal = eval(self.correctExpression)
@@ -79,15 +105,26 @@ class Cost_Calculator:
         try:
             outputVal = eval(expression)
         except ZeroDivisionError:
+            print(X,Y)
             X += ebsilon
             Y += ebsilon
+            print(X,Y)
+            print("HERE")
             outputVal = eval(expression)
-
-        #print(X,Y,correctVal,outputVal)
 
         return abs(correctVal - outputVal)
 
+
 # costCalculator = Cost_Calculator(parameters=['X','Y'], correctExpression="3*X+2*Y")
-# for i in range(0,10):
-#     reward = costCalculator.calReward("3*X+2*Y")
+# letters = '0,1,2,3,4,5,6,7,8,9,X,Y,+,-,*,/'
+# letters = letters.split(",")
+# for i in range(0,100000000):
+#     if i % 10000 == 0:
+#         print(i)
+#     expression = ""
+#     for j in range(0,30):
+#         letter_idx = random.randint(0,len(letters)-1)
+#         expression += letters[letter_idx]
+#     print(expression)
+#     reward = costCalculator.calReward(expression)
 # print(reward)
