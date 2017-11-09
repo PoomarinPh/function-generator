@@ -13,8 +13,9 @@ class Cost_Calculator:
         self.usingFile = usingFile
 
     def calReward(self, expression):
-        differenceReward, compilableReward = self.__calCompileAndDifferenceReward(expression)
+        compilableReward, differenceReward  = self.__calCompileAndDifferenceReward(expression)
         lengthReward = self.__calLengthReward(expression)
+        print(differenceReward, compilableReward, lengthReward)
         return differenceReward + compilableReward + lengthReward
 
     def __calCompileAndDifferenceReward(self, expression):
@@ -38,13 +39,13 @@ class Cost_Calculator:
         if sumDiff == 0:
             sumDiff = np.exp(-100)
 
-        return 0, self.__scaleValue(sumDiff)
+        return self.outputCompilableWeight, self.__scaleValue(sumDiff)
 
     def __calLengthReward(self, expression):
         return len(expression) * self.outputLengthWeight
 
     def __scaleValue(self, value):
-        return np.log(self.differenceCap) + np.log(value)
+        return - np.log(value)
 
     def __editOutputFile(self, expression):
         try:
@@ -87,5 +88,6 @@ class Cost_Calculator:
         return abs(correctVal - outputVal)
 
 # costCalculator = Cost_Calculator(parameters=['X','Y'], correctExpression="3*X+2*Y")
-# reward = costCalculator.calReward("3*X+2\)jsanldkjn*Y")
+# for i in range(0,10):
+#     reward = costCalculator.calReward("3*X+2*Y")
 # print(reward)
