@@ -6,7 +6,7 @@ import random
 class RewardCalculator:
     def __init__(self, correctExpression, parameters, usingFile=False):
         """
-        Initialize cost calculator.
+        Initialize reward calculator.
         :param correctExpression (String): Correct expression e.g. "2*X+3*Y"
         :param parameters (List<String>): List of available (case sensitive) variables e.g. ['X','Y']
         :param usingFile (Bool): True to use file-writing to calculate expression result
@@ -47,11 +47,9 @@ class RewardCalculator:
                         diff = self.__calDifferenceWithEval(expression,x,y)
                     print(diff)
                     if self.differenceCap < diff:
-                        print("More")
                         sumDiff = self.differenceCap
                         breakOut = True
                         break
-                    print("Less")
                     sumDiff += diff
                     if sumDiff > self.differenceCap:
                         sumDiff = self.differenceCap
@@ -119,7 +117,6 @@ class RewardCalculator:
             X += ebsilon
             Y += ebsilon
             print(X,Y)
-            print("HERE")
             outputVal = eval(expression)
 
         return abs(correctVal - outputVal)
