@@ -3,7 +3,7 @@ import numpy as np
 import os
 import random
 
-class Cost_Calculator:
+class RewardCalculator:
     def __init__(self, correctExpression, parameters, usingFile=False):
         """
         Initialize cost calculator.
