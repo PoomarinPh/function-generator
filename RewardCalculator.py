@@ -45,7 +45,6 @@ class RewardCalculator:
                         # TODO Add using file
                     else:
                         diff = self.__calDifferenceWithEval(expression,x,y)
-                    print(diff)
                     if self.differenceCap < diff:
                         sumDiff = self.differenceCap
                         breakOut = True
@@ -113,10 +112,8 @@ class RewardCalculator:
         try:
             outputVal = eval(expression)
         except ZeroDivisionError:
-            print(X,Y)
             X += ebsilon
             Y += ebsilon
-            print(X,Y)
             outputVal = eval(expression)
 
         return abs(correctVal - outputVal)
