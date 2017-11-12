@@ -4,11 +4,10 @@ from RewardCalculator import RewardCalculator
 class PolicyGradientModel:
     def __init__(self,
                  model,
-                 allowedParam,
                  allowedSymbol,
                  numSymbol,
                  maxLength,
-                 correctExpression,
+                 rewardCalculator,
                  learningRate,
                  fileName):
         '''
@@ -16,26 +15,19 @@ class PolicyGradientModel:
 
         :param model (keras.modesl.Model): A model to be trained. Assume it's recurrence so the input doesn't require
             the previous input as an input
-        :param allowedParam (List<String>): List of available parameters e.g. ['1','2','+','#']. # is the special
-            character to end the output and must be appended at the end of the list
         :param allowedSymbol (List<String>): List of available (case sensitive) variables e.g. ['X','Y']
         :param maxLength (Int): Max length of the output function
-        :param correctExpression (String): Correct expression e.g. "2*X+3*Y"
+        :param rewardCalculator (RewardCalculator): Calculator for the reward
         :param learningRate (Float): Learning rate for this model
         :param fileName (String): Relative/Absolute path and file name to which the weight of the model will be saved.
         '''
         self.model = model
-        self.allowedParam = np.array(allowedParam)
         self.allowedSymbol = np.array(allowedSymbol)
         self.numSymbol = len(self.allowedSymbol)
         self.maxLength = maxLength
-        self.correctExpression = correctExpression
+        self.rewardCalculator = rewardCalculator
         self.learningRate = learningRate
         self.fileName = fileName
-
-        self.rewardCalculator = RewardCalculator(correctExpression=correctExpression,
-                                                 parameters=allowedParam,
-                                                 usingFile=False)
 
         self.outputProbsHistory = []
         self.outputSequenceHistory = []
@@ -45,7 +37,7 @@ class PolicyGradientModel:
     def getModel(self):
         return self.model
 
-    def train(self, input, numEpoch=10000000, numEpochToSaveWeight=1000):
+    def train(self, input, numIterationPerEpoch=10, numEpoch=10000, numEpochToSaveWeight=10):
         '''
         The procedure of this training is:
             1. Predict output sequence (e.g. "3*X+5") from current model and weight. Store output and probability from
@@ -60,36 +52,38 @@ class PolicyGradientModel:
         '''
 
         for ep in range(numEpoch):
+            averageLoss = 0.0
+            for it in range(numIterationPerEpoch):
+                # Predict an output sequence
+                modelOutput, probHistory = self.predictOutputSequence(input)
+                outputLength = len(modelOutput)
 
-            # Predict an output sequence
-            modelOutput, probHistory = self.predictOutputSequence(input)
-            outputLength = len(modelOutput)
+                # Save state of current sequence
+                self.__saveState(outputs=modelOutput, probs=probHistory)
 
-            # Save state of current sequence
-            self.__saveState(outputs=modelOutput, probs=probHistory)
+                if self.allowedSymbol[modelOutput[len(modelOutput)-1]] == '#':
+                    outputAlphabet = self.allowedSymbol[modelOutput[0:(len(modelOutput)-1)]]
+                else:
+                    outputAlphabet = self.allowedSymbol[modelOutput]
 
-            if self.allowedSymbol[modelOutput[len(modelOutput)-1]] == '#':
-                outputAlphabet = self.allowedSymbol[modelOutput[0:(len(modelOutput)-1)]]
-            else:
-                outputAlphabet = self.allowedSymbol[modelOutput]
+                reward = self.rewardCalculator.calReward(''.join(outputAlphabet))
+                gradients = np.vstack(self.gradients)
+                gradients *= reward
+                X = np.ones((outputLength,1,1))
+                reshapedOutputProbsHistory = np.array(self.outputProbsHistory).reshape(outputLength, self.numSymbol)
+                Y = reshapedOutputProbsHistory + self.learningRate * np.squeeze(np.vstack([gradients]))
+                self.model.reset_states()
+                loss = self.model.train_on_batch(X, Y)
+                averageLoss += loss
+                self.__resetHistory()
 
-            reward = self.rewardCalculator.calReward(''.join(outputAlphabet))
-            gradients = np.vstack(self.gradients)
-            gradients *= reward
-            X = np.ones((outputLength,1,1))
-            reshapedOutputProbsHistory = np.array(self.outputProbsHistory).reshape(outputLength, self.numSymbol)
-            Y = reshapedOutputProbsHistory + self.learningRate * np.squeeze(np.vstack([gradients]))
-            self.model.reset_states()
-            loss = self.model.train_on_batch(X, Y)
+            averageLoss /= numIterationPerEpoch
+            print("Epoch: %d\tLoss: %s\tExample Output: %s" %(ep, averageLoss, ''.join(outputAlphabet)))
 
             if ep % numEpochToSaveWeight == 0:
-                print(ep)
-                print(''.join(outputAlphabet))
-            else:
-                print(ep)
+                print("Saving Weight")
+                self.saveWeight()
 
-
-            self.__resetHistory()
 
     def predictOutputSequence(self, input):
         """
