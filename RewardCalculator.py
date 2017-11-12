@@ -4,20 +4,33 @@ import os
 import random
 
 class RewardCalculator:
-    def __init__(self, correctExpression, parameters, usingFile=False):
+    ln_CAP = 100
+
+    def __init__(self,
+                 correctExpression,
+                 parameters,
+                 usingFunctionDifferenceReward=True,
+                 usingCompilableReward=True,
+                 usingLengthReward=True,
+                 usingFile=False):
         """
         Initialize reward calculator.
         :param correctExpression (String): Correct expression e.g. "2*X+3*Y"
         :param parameters (List<String>): List of available (case sensitive) variables e.g. ['X','Y']
         :param usingFile (Bool): True to use file-writing to calculate expression result
         """
-        self.outputDifferenceWeight = 1 # Multiply to the difference
-        self.outputCompilableWeight = +150 #
-        self.differenceCap = np.exp(100) # More than or less than negative of this will be capped
-        self.outputLengthWeight = -3 # per characters
+        self.outputDifferenceWeight = 1 * usingFunctionDifferenceReward # Multiply to the difference
+        self.outputCompilableWeight = +150 * usingCompilableReward #
+        self.differenceCap = np.exp(self.ln_CAP) # More than or less than negative of this will be capped
+        self.outputLengthWeight = -30 * usingLengthReward # per characters
         self.parameters = parameters # List of Variable name
         self.correctExpression = correctExpression # In case the output is expression
         self.usingFile = usingFile
+
+        self.maxReward = self.ln_CAP + 30 * abs(self.outputLengthWeight) + abs(self.outputCompilableWeight)
+
+    def normReward(self, reward):
+        return 1.0 * reward / self.maxReward
 
     def calReward(self, expression):
         """
@@ -27,8 +40,8 @@ class RewardCalculator:
         """
         compilableReward, differenceReward  = self.__calCompileAndDifferenceReward(expression)
         lengthReward = self.__calLengthReward(expression)
-        print(differenceReward, compilableReward, lengthReward)
-        return differenceReward + compilableReward + lengthReward
+        #print(differenceReward, compilableReward, lengthReward)
+        return self.normReward(differenceReward + compilableReward + lengthReward)
 
     def __calCompileAndDifferenceReward(self, expression):
         # In case of using output file
@@ -72,7 +85,7 @@ class RewardCalculator:
         if sumDiff == 0:
             sumDiff = np.exp(-100)
 
-        return self.outputCompilableWeight, self.__scaleValue(sumDiff)
+        return self.outputCompilableWeight, self.__scaleValue(sumDiff) * self.outputDifferenceWeight
 
     def __calLengthReward(self, expression):
         return len(expression) * self.outputLengthWeight
