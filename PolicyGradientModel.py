@@ -55,17 +55,18 @@ class PolicyGradientModel:
             averageLoss = 0.0
             for it in range(numIterationPerEpoch):
                 # Predict an output sequence
-                modelOutput, probHistory = self.predictOutputSequence(input)
+                modelOutput, probHistory, rewardHistory = self.predictOutputSequence(input)
                 outputLength = len(modelOutput)
 
                 # Save state of current sequence
-                self.__saveState(outputs=modelOutput, probs=probHistory)
+                self.__saveState(outputs=modelOutput, probs=probHistory, rewards=rewardHistory)
 
                 if self.allowedSymbol[modelOutput[len(modelOutput)-1]] == '#':
                     outputAlphabet = self.allowedSymbol[modelOutput[0:(len(modelOutput)-1)]]
                 else:
                     outputAlphabet = self.allowedSymbol[modelOutput]
 
+                # TODO: Use rewards of each character in the sequence to do backpropagation
                 reward = self.rewardCalculator.calReward(''.join(outputAlphabet))
                 gradients = np.vstack(self.gradients)
                 gradients *= reward
@@ -95,6 +96,8 @@ class PolicyGradientModel:
         """
         outputs = []
         outputProbHistory = []
+        rewards = []
+
         self.model.reset_states()
         for i in range(self.maxLength):
             outputProb = self.model.predict(input, batch_size=1)
@@ -106,11 +109,13 @@ class PolicyGradientModel:
             # Output is action. It can be both correct or incorrect
             # Source: http://karpathy.github.io/2016/05/31/rl/
             output = np.random.choice(self.numSymbol, 1, p=normalizedProb.reshape((self.numSymbol)))[0]
-            #print('Output = ', self.allowedSymbol[output])
             outputs.append(output)
+
+            # TODO: Calculate reward from current sequence and append on rewards
+
             if self.allowedSymbol[output] == '#':
                 break
-        return outputs, outputProbHistory
+        return outputs, outputProbHistory, rewards
 
     def saveWeight(self):
         '''
@@ -130,12 +135,11 @@ class PolicyGradientModel:
         self.gradients = []
         self.rewards = []
 
-    def __saveState(self, outputs, probs):
-        # TODO(Poomarin): Save necessary variables for back propagation
+    def __saveState(self, outputs, probs, rewards):
         for i in range(len(probs)):
             self.outputProbsHistory.append(probs[i])
             self.outputSequenceHistory.append(outputs[i])
-            self.rewards.append(0) # Dummy
+            self.rewards.append(rewards[i])
 
             y = np.zeros([self.numSymbol])
             y[outputs[i]] = 1
