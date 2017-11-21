@@ -9,6 +9,7 @@ class PolicyGradientModel:
                  maxLength,
                  rewardCalculator,
                  learningRate,
+                 rewardDecay,
                  fileName):
         '''
         Initialize PolicyGradientModel.
@@ -27,6 +28,7 @@ class PolicyGradientModel:
         self.maxLength = maxLength
         self.rewardCalculator = rewardCalculator
         self.learningRate = learningRate
+        self.rewardDecay = rewardDecay
         self.fileName = fileName
 
         self.outputProbsHistory = []
@@ -55,31 +57,37 @@ class PolicyGradientModel:
             averageLoss = 0.0
             for it in range(numIterationPerEpoch):
                 # Predict an output sequence
-                modelOutput, probHistory, rewardHistory = self.predictOutputSequence(input)
+                modelOutput, probHistory, rewardHistory, charSequence = self.predictOutputSequence(input)
                 outputLength = len(modelOutput)
 
+                # Decay Reward
+                rewardHistory = self.__decayReward(rewardHistory)
+
+                # Calculate Gradient
+                gradients = self.__calGradient(outputs=modelOutput,probs=probHistory,rewards=rewardHistory)
+
                 # Save state of current sequence
-                self.__saveState(outputs=modelOutput, probs=probHistory, rewards=rewardHistory)
+                self.__saveState(outputs=modelOutput, probs=probHistory, decayedRewards=rewardHistory, gradient=gradients)
 
-                if self.allowedSymbol[modelOutput[len(modelOutput)-1]] == '#':
-                    outputAlphabet = self.allowedSymbol[modelOutput[0:(len(modelOutput)-1)]]
-                else:
-                    outputAlphabet = self.allowedSymbol[modelOutput]
-
-                # TODO: Use rewards of each character in the sequence to do backpropagation
-                reward = self.rewardCalculator.calReward(''.join(outputAlphabet))
                 gradients = np.vstack(self.gradients)
-                gradients *= reward
                 X = np.ones((outputLength,1,1))
                 reshapedOutputProbsHistory = np.array(self.outputProbsHistory).reshape(outputLength, self.numSymbol)
                 Y = reshapedOutputProbsHistory + self.learningRate * np.squeeze(np.vstack([gradients]))
+
+                # Clear model history of recurrence unit
                 self.model.reset_states()
+
+                # Train on current batch
                 loss = self.model.train_on_batch(X, Y)
+
+                # Save loss for logging
                 averageLoss += loss
+
+                # Delete current state
                 self.__resetHistory()
 
             averageLoss /= numIterationPerEpoch
-            print("Epoch: %d\tLoss: %s\tExample Output: %s" %(ep, averageLoss, ''.join(outputAlphabet)))
+            print("Epoch: %d\tLoss: %s\tExample Output: %s" %(ep, averageLoss, charSequence))
 
             if ep % numEpochToSaveWeight == 0:
                 print("Saving Weight")
@@ -111,11 +119,14 @@ class PolicyGradientModel:
             output = np.random.choice(self.numSymbol, 1, p=normalizedProb.reshape((self.numSymbol)))[0]
             outputs.append(output)
 
-            # TODO: Calculate reward from current sequence and append on rewards
+            # Calculate reward from current output
+            currentReward, charSequence = self.__calRewardFromOnehot(outputs)
+
+            rewards.append(currentReward)
 
             if self.allowedSymbol[output] == '#':
                 break
-        return outputs, outputProbHistory, rewards
+        return outputs, outputProbHistory, rewards, charSequence
 
     def saveWeight(self):
         '''
@@ -129,18 +140,50 @@ class PolicyGradientModel:
         '''
         self.model.load_weights(self.fileName)
 
+    def __calRewardFromOnehot(self, modelOutput):
+        isSequenceFinished = False
+        if self.allowedSymbol[modelOutput[len(modelOutput) - 1]] == '#':
+            outputAlphabet = self.allowedSymbol[modelOutput[0:(len(modelOutput) - 1)]]
+            isSequenceFinished = True
+        elif len(self.allowedSymbol) == self.maxLength:
+            isSequenceFinished = True
+            outputAlphabet = self.allowedSymbol[modelOutput]
+        else:
+            outputAlphabet = self.allowedSymbol[modelOutput]
+
+        # Separate case finished and unfinished sequence
+        reward = self.rewardCalculator.calReward(''.join(outputAlphabet), isFinalState=isSequenceFinished)
+
+        return reward, ''.join(outputAlphabet)
+
     def __resetHistory(self):
         self.outputSequenceHistory = []
         self.outputProbsHistory = []
         self.gradients = []
         self.rewards = []
 
-    def __saveState(self, outputs, probs, rewards):
-        for i in range(len(probs)):
-            self.outputProbsHistory.append(probs[i])
-            self.outputSequenceHistory.append(outputs[i])
-            self.rewards.append(rewards[i])
+    def __decayReward(self, rewards):
+        currentReward = 0
+        newReward = []
+        #print(rewards)
+        for reward in rewards[::-1]:
+            currentReward += reward
+            newReward.append(currentReward)
+            currentReward *= self.rewardDecay
+        newReward.reverse()
+        return newReward
 
+    def __calGradient(self, outputs, probs, rewards):
+        gradients = []
+        for i in range(len(probs)):
             y = np.zeros([self.numSymbol])
             y[outputs[i]] = 1
-            self.gradients.append(y.astype('float32') - probs[i])
+            gradients.append(y.astype('float32') - probs[i])
+        return gradients
+
+    def __saveState(self, outputs, probs, decayedRewards, gradient):
+        self.rewards = decayedRewards
+        self.outputProbsHistory = probs
+        self.outputSequenceHistory = outputs
+        self.gradients = gradient
+

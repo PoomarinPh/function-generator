@@ -27,12 +27,12 @@ class RewardCalculator:
         self.correctExpression = correctExpression # In case the output is expression
         self.usingFile = usingFile
 
+        self.maxRewardFinishedSequence = 1.0
+        self.maxRewardPartialSequence = 0.5
+
         self.maxReward = self.ln_CAP + 30 * abs(self.outputLengthWeight) + abs(self.outputCompilableWeight)
 
-    def normReward(self, reward):
-        return 1.0 * reward / self.maxReward
-
-    def calReward(self, expression):
+    def calReward(self, expression, isFinalState):
         """
         Calculate reward.
         :param expression (String): Expression to compare to self.correctExpression
@@ -40,8 +40,13 @@ class RewardCalculator:
         """
         compilableReward, differenceReward  = self.__calCompileAndDifferenceReward(expression)
         lengthReward = self.__calLengthReward(expression)
-        #print(differenceReward, compilableReward, lengthReward)
-        return self.normReward(differenceReward + compilableReward + lengthReward)
+
+        if isFinalState:
+            return self.__normReward(differenceReward + compilableReward + lengthReward,
+                                     maxValue=self.maxRewardFinishedSequence)
+        else:
+            return self.__normReward(lengthReward,
+                                     maxValue=self.maxRewardPartialSequence)
 
     def __calCompileAndDifferenceReward(self, expression):
         # In case of using output file
@@ -86,6 +91,9 @@ class RewardCalculator:
             sumDiff = np.exp(-100)
 
         return self.outputCompilableWeight, self.__scaleValue(sumDiff) * self.outputDifferenceWeight
+
+    def __normReward(self, reward, maxValue):
+        return 1.0 * reward / self.maxReward * maxValue
 
     def __calLengthReward(self, expression):
         return len(expression) * self.outputLengthWeight
