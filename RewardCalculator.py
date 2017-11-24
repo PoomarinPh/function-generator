@@ -11,6 +11,7 @@ class RewardCalculator:
                  functionDifferenceRewardWeight=1,
                  compilableRewardWeight=1,
                  lengthRewardWeight=-0.02,
+                 foundSymbolWeight=0.1,
                  rewardOffset=0.0,
                  usingFile=False):
         """
@@ -32,7 +33,7 @@ class RewardCalculator:
         self.parameters = parameters # List of Variable name
         self.correctExpression = correctExpression # In case the output is expression
         self.usingFile = usingFile
-        self.outputFoundSymbolWeight = +0.1 * usingFoundSymbolReward
+        self.outputFoundSymbolWeight = foundSymbolWeight * usingFoundSymbolReward
 
         #self.maxReward = self.diffAllCap * usingFunctionDifferenceReward + 30 * abs(self.outputLengthWeight) + abs(self.outputCompilableWeight)
         self.maxReward = self.diffAllCap * functionDifferenceRewardWeight + abs(self.outputCompilableWeight)
