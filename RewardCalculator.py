@@ -8,9 +8,10 @@ class RewardCalculator:
     def __init__(self,
                  correctExpression,
                  parameters,
-                 usingFunctionDifferenceReward=True,
-                 usingCompilableReward=True,
-                 usingLengthReward=True,
+                 functionDifferenceRewardWeight=1,
+                 compilableRewardWeight=1,
+                 lengthRewardWeight=-0.02,
+                 rewardOffset=0.0,
                  usingFile=False):
         """
         Initialize reward calculator.
@@ -25,15 +26,15 @@ class RewardCalculator:
         self.diffRangeChecked = range(diffMinCheck, diffMaxCheck)
         self.diffAllCap = (diffMaxCheck - diffMinCheck) * self.lnCapEach
 
-        self.outputDifferenceWeight = 1 * usingFunctionDifferenceReward # Multiply to the difference
-        self.outputCompilableWeight = 1 * usingCompilableReward #
-        self.outputLengthWeight = -0.02 * usingLengthReward # per characters
+        self.outputDifferenceWeight = functionDifferenceRewardWeight # Multiply to the difference
+        self.outputCompilableWeight = compilableRewardWeight #
+        self.outputLengthWeight = lengthRewardWeight # per characters
         self.parameters = parameters # List of Variable name
         self.correctExpression = correctExpression # In case the output is expression
         self.usingFile = usingFile
 
         #self.maxReward = self.diffAllCap * usingFunctionDifferenceReward + 30 * abs(self.outputLengthWeight) + abs(self.outputCompilableWeight)
-        self.maxReward = self.diffAllCap * usingFunctionDifferenceReward + abs(self.outputCompilableWeight)
+        self.maxReward = self.diffAllCap * functionDifferenceRewardWeight + abs(self.outputCompilableWeight)
 
     def normReward(self, reward):
         return 1.0 * reward / self.maxReward
