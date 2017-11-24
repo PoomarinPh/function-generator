@@ -11,7 +11,8 @@ class RewardCalculator:
                  functionDifferenceRewardWeight=1,
                  compilableRewardWeight=1,
                  lengthRewardWeight=-0.02,
-                 foundSymbolWeight=0.1,
+                 foundMathSymbolWeight=0.1,
+                 foundVariableWeight=0.2,
                  rewardOffset=0.0,
                  usingFile=False):
         """
@@ -33,7 +34,8 @@ class RewardCalculator:
         self.parameters = parameters # List of Variable name
         self.correctExpression = correctExpression # In case the output is expression
         self.usingFile = usingFile
-        self.outputFoundSymbolWeight = foundSymbolWeight
+        self.outputFoundMathSymbolWeight = foundMathSymbolWeight
+        self.outputFoundVariableWeight = foundVariableWeight
         self.rewardOffset = rewardOffset
 
         #self.maxReward = self.diffAllCap * usingFunctionDifferenceReward + 30 * abs(self.outputLengthWeight) + abs(self.outputCompilableWeight)
@@ -53,7 +55,7 @@ class RewardCalculator:
         foundSymbolReward = self.__calFoundSymbolReward(expression)
 
         #print(differenceReward, compilableReward, lengthReward)
-        reward = self.normReward(differenceReward + compilableReward + lengthReward) + self.rewardOffset
+        reward = differenceReward + compilableReward + lengthReward + self.rewardOffset + foundSymbolReward
         if reward < -1:
             reward = -1
         if reward > 1:
@@ -61,13 +63,14 @@ class RewardCalculator:
         return reward
 
     def __calFoundSymbolReward(self, expression):
-        count = 0
+        countMathSymbol = 0
+        countVariable = 0
         for c in expression:
             if c in "*-+/":
-                count += 1
+                countMathSymbol += 1
             elif c in "XY":
-                count += 2
-        return count * self.outputFoundSymbolWeight
+                countVariable += 1
+        return countMathSymbol * self.outputFoundMathSymbolWeight + countVariable * self.outputFoundVariableWeight
 
     def __calCompileAndDifferenceReward(self, expression):
         # In case of using output file
