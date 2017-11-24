@@ -11,6 +11,7 @@ class RewardCalculator:
                  usingFunctionDifferenceReward=True,
                  usingCompilableReward=True,
                  usingLengthReward=True,
+                 usingFoundSymbolReward=True,
                  usingFile=False):
         """
         Initialize reward calculator.
@@ -31,6 +32,7 @@ class RewardCalculator:
         self.parameters = parameters # List of Variable name
         self.correctExpression = correctExpression # In case the output is expression
         self.usingFile = usingFile
+        self.outputFoundSymbolWeight = +0.06 * usingFoundSymbolReward
 
         #self.maxReward = self.diffAllCap * usingFunctionDifferenceReward + 30 * abs(self.outputLengthWeight) + abs(self.outputCompilableWeight)
         self.maxReward = self.diffAllCap * usingFunctionDifferenceReward + abs(self.outputCompilableWeight)
@@ -46,11 +48,22 @@ class RewardCalculator:
         """
         compilableReward, differenceReward  = self.__calCompileAndDifferenceReward(expression)
         lengthReward = self.__calLengthReward(expression)
+        foundSymbolReward = self.__calFoundSymbolReward(expression)
+
         #print(differenceReward, compilableReward, lengthReward)
-        reward = self.normReward(differenceReward + compilableReward + lengthReward)
+        reward = self.normReward(differenceReward + compilableReward + lengthReward + foundSymbolReward)
         if reward < -1:
             reward = -1
+        if reward > 1:
+            reward = 1
         return reward
+
+    def __calFoundSymbolReward(self, expression):
+        count = 0
+        for c in expression:
+            if c in "*-+/XY":
+                count += 1
+        return count * self.outputFoundSymbolWeight
 
     def __calCompileAndDifferenceReward(self, expression):
         # In case of using output file
