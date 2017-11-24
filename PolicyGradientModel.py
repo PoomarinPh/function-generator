@@ -78,7 +78,7 @@ class PolicyGradientModel:
                 self.__resetHistory()
 
             averageLoss /= numIterationPerEpoch
-            print("Epoch: %d\tLoss: %s\tExample Output: %s" %(ep, averageLoss, ''.join(outputAlphabet)))
+            print("Epoch: %d\tLoss: %s\tExample Output: %s\tExample Reward: " %(ep, averageLoss, ''.join(outputAlphabet)),reward)
 
             if ep % numEpochToSaveWeight == 0:
                 print("Saving Weight")

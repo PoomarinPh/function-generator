@@ -4,7 +4,6 @@ import os
 import random
 
 class RewardCalculator:
-    ln_CAP = 100
 
     def __init__(self,
                  correctExpression,
@@ -19,15 +18,22 @@ class RewardCalculator:
         :param parameters (List<String>): List of available (case sensitive) variables e.g. ['X','Y']
         :param usingFile (Bool): True to use file-writing to calculate expression result
         """
+        self.lnCapEach = 10
+        self.capEach = np.exp(self.lnCapEach)
+        diffMinCheck = -30 # Included
+        diffMaxCheck = 31 # Excluded
+        self.diffRangeChecked = range(diffMinCheck, diffMaxCheck)
+        self.diffAllCap = (diffMaxCheck - diffMinCheck) * self.lnCapEach
+
         self.outputDifferenceWeight = 1 * usingFunctionDifferenceReward # Multiply to the difference
-        self.outputCompilableWeight = +150 * usingCompilableReward #
-        self.differenceCap = np.exp(self.ln_CAP) # More than or less than negative of this will be capped
-        self.outputLengthWeight = -30 * usingLengthReward # per characters
+        self.outputCompilableWeight = 1 * usingCompilableReward #
+        self.outputLengthWeight = -0.02 * usingLengthReward # per characters
         self.parameters = parameters # List of Variable name
         self.correctExpression = correctExpression # In case the output is expression
         self.usingFile = usingFile
 
-        self.maxReward = self.ln_CAP + 30 * abs(self.outputLengthWeight) + abs(self.outputCompilableWeight)
+        #self.maxReward = self.diffAllCap * usingFunctionDifferenceReward + 30 * abs(self.outputLengthWeight) + abs(self.outputCompilableWeight)
+        self.maxReward = self.diffAllCap * usingFunctionDifferenceReward + abs(self.outputCompilableWeight)
 
     def normReward(self, reward):
         return 1.0 * reward / self.maxReward
@@ -41,7 +47,10 @@ class RewardCalculator:
         compilableReward, differenceReward  = self.__calCompileAndDifferenceReward(expression)
         lengthReward = self.__calLengthReward(expression)
         #print(differenceReward, compilableReward, lengthReward)
-        return self.normReward(differenceReward + compilableReward + lengthReward)
+        reward = self.normReward(differenceReward + compilableReward + lengthReward)
+        if reward < -1:
+            reward = -1
+        return reward
 
     def __calCompileAndDifferenceReward(self, expression):
         # In case of using output file
@@ -50,23 +59,17 @@ class RewardCalculator:
 
         sumDiff = 0.0
         breakOut = False
-        for x in range(30):
-            for y in range(30):
+        for x in range(-30,31):
+            for y in range(-30,31):
                 try:
                     if self.usingFile:
                         diff = self.__calDifferenceWithFile(x,y)
                         # TODO Add using file
                     else:
                         diff = self.__calDifferenceWithEval(expression,x,y)
-                    if self.differenceCap < diff:
-                        sumDiff = self.differenceCap
-                        breakOut = True
-                        break
+                    if self.capEach < diff:
+                        diff = self.capEach
                     sumDiff += diff
-                    if sumDiff > self.differenceCap:
-                        sumDiff = self.differenceCap
-                        breakout = True
-                        break
                 except NameError:
                     return -self.outputCompilableWeight, 0
                 except SyntaxError:
@@ -74,14 +77,13 @@ class RewardCalculator:
                 except ZeroDivisionError:
                     return -self.outputCompilableWeight, 0 # Permanent Syntax Error
                 except OverflowError:
-                    sumDiff = self.differenceCap
+                    diff = self.capEach
+                    sumDiff += diff
                     breakOut = True
                     break
             if breakOut:
                 break
 
-        if sumDiff > self.differenceCap:
-            sumDiff = self.differenceCap
         if sumDiff == 0:
             sumDiff = np.exp(-100)
 
@@ -112,6 +114,9 @@ class RewardCalculator:
 
     def __calDifferenceWithEval(self, expression, X, Y):
         ebsilon = 10 ** -30
+
+        if "**" in expression:
+            raise SyntaxError
 
         try:
             correctVal = eval(self.correctExpression)
