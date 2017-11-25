@@ -52,19 +52,52 @@ class RewardCalculator:
         :param expression (String): Expression to compare to self.correctExpression
         :return (Double): Reward (Negative = Bad, Positive = Good)
         """
-        compilableReward, differenceReward  = self.__calCompileAndDifferenceReward(expression)
-        lengthReward = self.__calLengthReward(expression)
-        foundSymbolReward = self.__calFoundSymbolReward(expression)
+        # compilableReward, differenceReward  = self.__calCompileAndDifferenceReward(expression)
+        # lengthReward = self.__calLengthReward(expression)
+        # foundSymbolReward = self.__calFoundSymbolReward(expression)
+        #
+        # #print(differenceReward, compilableReward, lengthReward)
+        # if compilableReward > 0:
+        #     reward = differenceReward + compilableReward + lengthReward + self.rewardOffset + foundSymbolReward
+        # else:
+        #     reward = -0.3 # Not Compiled
+        # if reward < -1:
+        #     reward = -1
+        # if reward > 1:
+        #     reward = 1
 
-        #print(differenceReward, compilableReward, lengthReward)
-        if compilableReward > 0:
-            reward = differenceReward + compilableReward + lengthReward + self.rewardOffset + foundSymbolReward
-        else:
-            reward = -0.3 # Not Compiled
-        if reward < -1:
-            reward = -1
-        if reward > 1:
-            reward = 1
+        number = "0123456789"
+        mathSymbol = "+-*/"
+        variable = "XY"
+
+        negReward = -0.3
+
+        if len(expression) == 0:
+            return negReward
+
+        if len(expression) == 1:
+            if expression[0] in number+variable:
+                return 1
+            else:
+                return negReward
+
+        cur = expression[1]
+        prev = expression[0]
+        reward = negReward
+
+        if prev in mathSymbol:
+            return negReward
+
+        if prev in number:
+            if cur in number+mathSymbol:
+                reward = 1
+        if prev in mathSymbol:
+            if cur in number+mathSymbol+variable:
+                reward = 1
+        if prev in variable:
+            if cur in mathSymbol:
+                reward = 1
+
         return reward
 
     def __calFoundSymbolReward(self, expression):

@@ -57,6 +57,9 @@ class PolicyGradientModel:
                 # Predict an output sequence
                 modelOutput, probHistory = self.predictOutputSequence(input)
                 outputLength = len(modelOutput)
+
+                if outputLength <= 1:
+                    continue
                 
                 if self.allowedSymbol[modelOutput[len(modelOutput)-1]] == '#':
                     outputAlphabet = self.allowedSymbol[modelOutput[0:(len(modelOutput)-1)]]
@@ -70,7 +73,7 @@ class PolicyGradientModel:
                 self.__saveState(outputs=modelOutput, probs=probHistory, isPositiveReward=(reward > 0))
 
                 gradients = np.vstack(self.gradients)
-                gradients *= reward
+                gradients *= np.abs(reward)
                 X = np.ones((outputLength,1,1))
                 reshapedOutputProbsHistory = np.array(self.outputProbsHistory).reshape(outputLength, self.numSymbol)
                 Y = reshapedOutputProbsHistory + self.learningRate * np.squeeze(np.vstack([gradients]))
@@ -81,7 +84,10 @@ class PolicyGradientModel:
 
             averageLoss /= numIterationPerEpoch
             print("Epoch: %d\tLoss: %s\tExample Output: %s\tExample Reward: " %(ep, averageLoss, ''.join(outputAlphabet)),reward)
-            print(probHistory[0])
+            if len(probHistory)>1:
+                print(probHistory[1])
+            print(loss)
+            print(gradients)
             
             if ep % numEpochToSaveWeight == 0:
                 print("Saving Weight")
@@ -101,8 +107,8 @@ class PolicyGradientModel:
         self.model.reset_states()
         for i in range(self.maxLength):
             outputProb = self.model.predict(input, batch_size=1)
-            outputProbHistory.append(outputProb)
             normalizedProb = outputProb / np.sum(outputProb)
+            outputProbHistory.append(normalizedProb)
 
             # Random from distribution instead of getting max
             # Due to it's not supervised learning where output is correct/incorrect
