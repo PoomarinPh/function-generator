@@ -57,16 +57,18 @@ class PolicyGradientModel:
                 # Predict an output sequence
                 modelOutput, probHistory = self.predictOutputSequence(input)
                 outputLength = len(modelOutput)
-
-                # Save state of current sequence
-                self.__saveState(outputs=modelOutput, probs=probHistory)
-
+                
                 if self.allowedSymbol[modelOutput[len(modelOutput)-1]] == '#':
                     outputAlphabet = self.allowedSymbol[modelOutput[0:(len(modelOutput)-1)]]
                 else:
                     outputAlphabet = self.allowedSymbol[modelOutput]
 
+                # Calculate eventual reward
                 reward = self.rewardCalculator.calReward(''.join(outputAlphabet))
+                
+                # Save state of current sequence
+                self.__saveState(outputs=modelOutput, probs=probHistory, isPositiveReward=(reward > 0))
+
                 gradients = np.vstack(self.gradients)
                 gradients *= reward
                 X = np.ones((outputLength,1,1))
@@ -79,7 +81,8 @@ class PolicyGradientModel:
 
             averageLoss /= numIterationPerEpoch
             print("Epoch: %d\tLoss: %s\tExample Output: %s\tExample Reward: " %(ep, averageLoss, ''.join(outputAlphabet)),reward)
-
+            print(probHistory[0])
+            
             if ep % numEpochToSaveWeight == 0:
                 print("Saving Weight")
                 self.saveWeight()
@@ -118,11 +121,14 @@ class PolicyGradientModel:
         '''
         self.model.save(self.fileName)
 
-    def loadWeight(self):
+    def loadWeight(self, filename=None):
         '''
         Load weight of the model from the path specified at init
         '''
-        self.model.load_weights(self.fileName)
+        if filename == None:
+            self.model.load_weights(self.fileName)
+        else:
+            self.model.load_weights(filename)
 
     def __resetHistory(self):
         self.outputSequenceHistory = []
@@ -130,13 +136,17 @@ class PolicyGradientModel:
         self.gradients = []
         self.rewards = []
 
-    def __saveState(self, outputs, probs):
+    def __saveState(self, outputs, probs, isPositiveReward):
         # TODO(Poomarin): Save necessary variables for back propagation
         for i in range(len(probs)):
             self.outputProbsHistory.append(probs[i])
             self.outputSequenceHistory.append(outputs[i])
             self.rewards.append(0) # Dummy
-
-            y = np.zeros([self.numSymbol])
-            y[outputs[i]] = 1
-            self.gradients.append(y.astype('float32') - probs[i])
+            if isPositiveReward:
+                y = np.zeros([self.numSymbol])
+                y[outputs[i]] = 1
+                self.gradients.append(np.max(y.astype('float32') - probs[i],0))
+            else:
+                y = np.ones([self.numSymbol])
+                y[outputs[i]] = 0
+                self.gradients.append(np.max(y.astype('float32') - probs[i],0))

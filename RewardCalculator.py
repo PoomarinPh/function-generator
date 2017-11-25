@@ -5,6 +5,8 @@ import random
 
 class RewardCalculator:
 
+    discovery = []
+    
     def __init__(self,
                  correctExpression,
                  parameters,
@@ -55,7 +57,10 @@ class RewardCalculator:
         foundSymbolReward = self.__calFoundSymbolReward(expression)
 
         #print(differenceReward, compilableReward, lengthReward)
-        reward = differenceReward + compilableReward + lengthReward + self.rewardOffset + foundSymbolReward
+        if compilableReward > 0:
+            reward = differenceReward + compilableReward + lengthReward + self.rewardOffset + foundSymbolReward
+        else:
+            reward = -0.3 # Not Compiled
         if reward < -1:
             reward = -1
         if reward > 1:
@@ -63,14 +68,19 @@ class RewardCalculator:
         return reward
 
     def __calFoundSymbolReward(self, expression):
-        countMathSymbol = 0
-        countVariable = 0
+        countMathSymbol = 0.0
+        countVariable = 0.0
+        discoveryReward = 0.0
         for c in expression:
-            if c in "*-+/":
+            if c not in self.discovery:
+                self.discovery.append(c)
+                discoveryReward = 0.6
+            
+            if c in "-+*/":
                 countMathSymbol += 1
             elif c in "XY":
                 countVariable += 1
-        return countMathSymbol * self.outputFoundMathSymbolWeight + countVariable * self.outputFoundVariableWeight
+        return countMathSymbol * self.outputFoundMathSymbolWeight + countVariable * self.outputFoundVariableWeight + discoveryReward
 
     def __calCompileAndDifferenceReward(self, expression):
         # In case of using output file
@@ -113,7 +123,8 @@ class RewardCalculator:
         return len(expression) * self.outputLengthWeight
 
     def __scaleValue(self, value):
-        return -np.log(value)
+        return -(value / self.diffAllCap) * 2.0 - 1
+        #return -np.log(value)
 
     def __editOutputFile(self, expression):
         try:
