@@ -37,7 +37,7 @@ class PolicyGradientModel:
     def getModel(self):
         return self.model
 
-    def train(self, input, numIterationPerEpoch=10, numEpoch=10000, numEpochToSaveWeight=10):
+    def train(self, input, numIterationPerEpoch=100, numEpoch=100000, numEpochToSaveWeight=10):
         '''
         The procedure of this training is:
             1. Predict output sequence (e.g. "3*X+5") from current model and weight. Store output and probability from
@@ -71,12 +71,16 @@ class PolicyGradientModel:
                 
                 # Save state of current sequence
                 self.__saveState(outputs=modelOutput, probs=probHistory, isPositiveReward=(reward > 0))
+                #print(len(self.gradients))
+                #print(len(self.gradients[0]))
+                #print(self.gradients)
 
                 gradients = np.vstack(self.gradients)
                 gradients *= np.abs(reward)
-                X = np.ones((outputLength,1,1))
+                X = np.ones((1,outputLength,1))
                 reshapedOutputProbsHistory = np.array(self.outputProbsHistory).reshape(outputLength, self.numSymbol)
                 Y = reshapedOutputProbsHistory + self.learningRate * np.squeeze(np.vstack([gradients]))
+                Y = Y.reshape(1, Y.shape[0], Y.shape[1])
                 self.model.reset_states()
                 loss = self.model.train_on_batch(X, Y)
                 averageLoss += loss
@@ -84,10 +88,14 @@ class PolicyGradientModel:
 
             averageLoss /= numIterationPerEpoch
             print("Epoch: %d\tLoss: %s\tExample Output: %s\tExample Reward: " %(ep, averageLoss, ''.join(outputAlphabet)),reward)
-            if len(probHistory)>1:
-                print(probHistory[1])
-            print(loss)
-            print(gradients)
+            if ep % 10 == 0:
+                if len(probHistory)>1:
+                    print(probHistory[0])
+                    print(probHistory[1])
+                elif len(probHistory)==1:
+                    print(probHistory[0])
+                print(loss)
+                print(gradients)
             
             if ep % numEpochToSaveWeight == 0:
                 print("Saving Weight")
@@ -105,9 +113,18 @@ class PolicyGradientModel:
         outputs = []
         outputProbHistory = []
         self.model.reset_states()
+        
+        input_batch = np.ones((1, self.maxLength, 1))
+        outputProbs = self.model.predict(input_batch, batch_size=self.maxLength)
+        #print(outputProbs.shape)
+        #print("outputProbs")
+        #print(outputProbs.shape)
+        
         for i in range(self.maxLength):
-            outputProb = self.model.predict(input, batch_size=1)
+            outputProb = outputProbs[0,i,:]
+            #print(outputProb.shape)
             normalizedProb = outputProb / np.sum(outputProb)
+            #print(normalizedProb)
             outputProbHistory.append(normalizedProb)
 
             # Random from distribution instead of getting max
@@ -115,6 +132,7 @@ class PolicyGradientModel:
             # Output is action. It can be both correct or incorrect
             # Source: http://karpathy.github.io/2016/05/31/rl/
             output = np.random.choice(self.numSymbol, 1, p=normalizedProb.reshape((self.numSymbol)))[0]
+            #output = np.argmax(normalizedProb.reshape((self.numSymbol)))
             #print('Output = ', self.allowedSymbol[output])
             outputs.append(output)
             if self.allowedSymbol[output] == '#':
@@ -148,11 +166,21 @@ class PolicyGradientModel:
             self.outputProbsHistory.append(probs[i])
             self.outputSequenceHistory.append(outputs[i])
             self.rewards.append(0) # Dummy
-            if isPositiveReward:
-                y = np.zeros([self.numSymbol])
-                y[outputs[i]] = 1
-                self.gradients.append(np.max(y.astype('float32') - probs[i],0))
+            if i == len(probs)-1:
+                if isPositiveReward:
+                    #print("here")
+                    #print(probs[i])
+                    y = np.zeros([self.numSymbol])
+                    y[outputs[i]] = 1
+                    self.gradients.append(y.astype('float32') - probs[i])
+                else:
+                    #print("here2")
+                    #print(probs[i])
+                    y = np.ones([self.numSymbol])
+                    y[outputs[i]] = 0
+                    self.gradients.append(y.astype('float32') - probs[i])
             else:
-                y = np.ones([self.numSymbol])
-                y[outputs[i]] = 0
-                self.gradients.append(np.max(y.astype('float32') - probs[i],0))
+                #print("here3")
+                #print(probs[i])
+                self.gradients.append(np.zeros([self.numSymbol]))
+            #print(self.gradients[len(self.gradients)-1])

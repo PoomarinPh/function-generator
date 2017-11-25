@@ -85,14 +85,11 @@ class RewardCalculator:
         prev = expression[0]
         reward = negReward
 
-        if prev in mathSymbol:
-            return negReward
-
         if prev in number:
             if cur in number+mathSymbol:
                 reward = 1
         if prev in mathSymbol:
-            if cur in number+mathSymbol+variable:
+            if cur in number+variable:
                 reward = 1
         if prev in variable:
             if cur in mathSymbol:
