@@ -53,6 +53,9 @@ class PolicyGradientModel:
 
         for ep in range(numEpoch):
             averageLoss = 0.0
+            outputAlphabet = []
+            reward=0
+            gradients = []
             for it in range(numIterationPerEpoch):
                 # Predict an output sequence
                 modelOutput, probHistory = self.predictOutputSequence(input)
@@ -70,31 +73,36 @@ class PolicyGradientModel:
                 reward = self.rewardCalculator.calReward(''.join(outputAlphabet))
                 
                 # Save state of current sequence
-                self.__saveState(outputs=modelOutput, probs=probHistory, isPositiveReward=(reward > 0))
+                self.__saveState(outputs=modelOutput, probs=probHistory, isPositiveReward=(reward > 0), outputAlphabet=self.allowedSymbol[modelOutput])
                 #print(len(self.gradients))
                 #print(len(self.gradients[0]))
                 #print(self.gradients)
 
                 gradients = np.vstack(self.gradients)
-                gradients *= np.abs(reward)
+                #gradients *= np.abs(reward)
+                X_pad = np.zeros((1,self.maxLength - outputLength,1))
                 X = np.ones((1,outputLength,1))
+                X = np.concatenate([X_pad, X], axis=1)
                 reshapedOutputProbsHistory = np.array(self.outputProbsHistory).reshape(outputLength, self.numSymbol)
-                Y = reshapedOutputProbsHistory + self.learningRate * np.squeeze(np.vstack([gradients]))
+                Y = np.squeeze(np.vstack([gradients]))
+                Y_pad = np.zeros((1,self.maxLength - Y.shape[0],Y.shape[1]))
                 Y = Y.reshape(1, Y.shape[0], Y.shape[1])
+                Y = np.concatenate([Y_pad, Y], axis=1)
                 self.model.reset_states()
+                #print("X Shape: ",X.shape)
+                #print("Y Shape: ",Y.shape)
                 loss = self.model.train_on_batch(X, Y)
+                #loss = 0
                 averageLoss += loss
                 self.__resetHistory()
 
             averageLoss /= numIterationPerEpoch
             print("Epoch: %d\tLoss: %s\tExample Output: %s\tExample Reward: " %(ep, averageLoss, ''.join(outputAlphabet)),reward)
-            if ep % 10 == 0:
-                if len(probHistory)>1:
-                    print(probHistory[0])
-                    print(probHistory[1])
-                elif len(probHistory)==1:
-                    print(probHistory[0])
-                print(loss)
+            if ep % 50 == 0:
+                print("Prob")
+                for i in range(len(probHistory)):
+                    print(probHistory[i])
+                print("Gradient")
                 print(gradients)
             
             if ep % numEpochToSaveWeight == 0:
@@ -160,27 +168,47 @@ class PolicyGradientModel:
         self.gradients = []
         self.rewards = []
 
-    def __saveState(self, outputs, probs, isPositiveReward):
-        # TODO(Poomarin): Save necessary variables for back propagation
+    def __saveState(self, outputs, probs, isPositiveReward, outputAlphabet):
+        number = "0123456789"
+        numberArray = np.array([0,0,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0])
+        numberArray = numberArray / np.sum(numberArray)
+        mathSymbol = "+-*/"
+        mathSymbolArray = np.array([0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,0])
+        mathSymbolArray = mathSymbolArray / np.sum(mathSymbolArray)
+        variable = "XY"
+        variableArray = np.array([1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
+        variableArray = variableArray / np.sum(variableArray)
+        end = "#"
+        endArray = np.array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1])
+
+        if len(outputAlphabet) == 1:
+            y = np.ones([self.numSymbol])
+            y[outputs[i]] = 0
+            self.gradients.append(y.astype('float32') - probs[i])
+        else:
+            y = np.zeros([self.numSymbol])
+            y = (numberArray + variableArray) / 2
+            self.gradients.append(y.astype('float32'))
+            for i in range(len(outputAlphabet)-1):
+                cur = outputAlphabet[i+1]
+                prev = outputAlphabet[i]
+
+                y = np.zeros([self.numSymbol])
+                if prev in number:
+                    #print(1.0 * len(variable) / len(number))
+                    #if np.random.uniform() < 1.0 * len(variable) / len(number):
+                    y = (numberArray*2 + mathSymbolArray*4 + endArray*1) / 7
+                    #else:
+                    #y = probs[1]
+                if prev in mathSymbol:
+                    y = (numberArray*1 + variableArray*1) / 2
+                    y = probs[1]
+                if prev in variable:
+                    y = (mathSymbolArray*6 + endArray*1) / 7
+                    #y = probs[1]
+                self.gradients.append(y.astype('float32'))
+
         for i in range(len(probs)):
             self.outputProbsHistory.append(probs[i])
             self.outputSequenceHistory.append(outputs[i])
             self.rewards.append(0) # Dummy
-            if i == len(probs)-1:
-                if isPositiveReward:
-                    #print("here")
-                    #print(probs[i])
-                    y = np.zeros([self.numSymbol])
-                    y[outputs[i]] = 1
-                    self.gradients.append(y.astype('float32') - probs[i])
-                else:
-                    #print("here2")
-                    #print(probs[i])
-                    y = np.ones([self.numSymbol])
-                    y[outputs[i]] = 0
-                    self.gradients.append(y.astype('float32') - probs[i])
-            else:
-                #print("here3")
-                #print(probs[i])
-                self.gradients.append(np.zeros([self.numSymbol]))
-            #print(self.gradients[len(self.gradients)-1])
