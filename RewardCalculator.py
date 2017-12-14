@@ -19,12 +19,12 @@ class RewardCalculator:
         :param parameters (List<String>): List of available (case sensitive) variables e.g. ['X','Y']
         :param usingFile (Bool): True to use file-writing to calculate expression result
         """
-        self.lnCapEach = 10
+        self.lnCapEach = 15
         self.capEach = np.exp(self.lnCapEach)
-        diffMinCheck = -30 # Included
-        diffMaxCheck = 31 # Excluded
+        diffMinCheck = -10 # Included
+        diffMaxCheck = 11 # Excluded
         self.diffRangeChecked = range(diffMinCheck, diffMaxCheck)
-        self.diffAllCap = (diffMaxCheck - diffMinCheck) * self.lnCapEach
+        self.diffAllCap = np.log((diffMaxCheck - diffMinCheck) * (diffMaxCheck - diffMinCheck) * self.capEach)
 
         self.outputDifferenceWeight = functionDifferenceRewardWeight # Multiply to the difference
         self.outputCompilableWeight = compilableRewardWeight #
@@ -38,6 +38,8 @@ class RewardCalculator:
         self.maxReward = self.diffAllCap * functionDifferenceRewardWeight + abs(self.outputCompilableWeight)
 
     def normReward(self, reward):
+        if self.maxReward == 0:
+            return 0
         return 1.0 * reward / self.maxReward
 
     def calReward(self, expression):
@@ -46,10 +48,20 @@ class RewardCalculator:
         :param expression (String): Expression to compare to self.correctExpression
         :return (Double): Reward (Negative = Bad, Positive = Good)
         """
+        if expression == self.correctExpression:
+            return 1000
+
+
         compilableReward, differenceReward  = self.__calCompileAndDifferenceReward(expression)
         lengthReward = self.__calLengthReward(expression)
-        #print(differenceReward, compilableReward, lengthReward)
-        reward = self.normReward(differenceReward + compilableReward + lengthReward) + self.rewardOffset
+        if compilableReward < 0:
+            return 0
+
+        if compilableReward > 0 and np.abs(differenceReward) < 0.000000001:
+            return 10000000
+        # reward = self.normReward(differenceReward) + self.rewardOffset
+        reward = differenceReward + self.rewardOffset
+        reward = reward
         if reward < -1:
             reward = -1
         return reward
@@ -61,8 +73,13 @@ class RewardCalculator:
 
         sumDiff = 0.0
         breakOut = False
-        for x in range(-30,31):
-            for y in range(-30,31):
+
+        rangeVal = np.array(range(-10,11))
+        rangeVal = rangeVal ** 2
+        rangeVal = rangeVal.tolist()
+
+        for x in rangeVal:
+            for y in rangeVal:
                 try:
                     if self.usingFile:
                         diff = self.__calDifferenceWithFile(x,y)
@@ -77,7 +94,7 @@ class RewardCalculator:
                 except SyntaxError:
                     return -self.outputCompilableWeight, 0
                 except ZeroDivisionError:
-                    return -self.outputCompilableWeight, 0 # Permanent Syntax Error
+                    return -self.outputCompilableWeight, 0  # Permanent Syntax Error
                 except OverflowError:
                     diff = self.capEach
                     sumDiff += diff
@@ -95,14 +112,16 @@ class RewardCalculator:
         return len(expression) * self.outputLengthWeight
 
     def __scaleValue(self, value):
-        return -np.log(value)
+        if value <= 0.000000000001:
+            return 0
+        scaled = ((1 - np.log(value) / self.diffAllCap) * 2 - 1)
+        return scaled
 
     def __editOutputFile(self, expression):
         try:
             os.remove("Model_Output_Function.py")
         except FileNotFoundError:
             pass
-
         with open('Model_Output_Function.py', 'w') as file:
             parameters = ",".join(self.parameters)
             file.write("def outputFunction(%s):\n" %(parameters))
@@ -110,16 +129,12 @@ class RewardCalculator:
             file.write("    return " + expression)
 
     def __calDifferenceWithFile(self, X, Y):
-        #outputVal =outputFunction(X,Y)
-        #return correctVal - outputVal
         pass
 
     def __calDifferenceWithEval(self, expression, X, Y):
         ebsilon = 10 ** -30
-
         if "**" in expression:
             raise SyntaxError
-
         try:
             correctVal = eval(self.correctExpression)
         except ZeroDivisionError:
@@ -128,27 +143,10 @@ class RewardCalculator:
             correctVal = eval(self.correctExpression)
             X -= ebsilon
             Y -= ebsilon
-
         try:
             outputVal = eval(expression)
         except ZeroDivisionError:
             X += ebsilon
             Y += ebsilon
             outputVal = eval(expression)
-
         return abs(correctVal - outputVal)
-
-
-# costCalculator = Cost_Calculator(parameters=['X','Y'], correctExpression="3*X+2*Y")
-# letters = '0,1,2,3,4,5,6,7,8,9,X,Y,+,-,*,/'
-# letters = letters.split(",")
-# for i in range(0,100000000):
-#     if i % 10000 == 0:
-#         print(i)
-#     expression = ""
-#     for j in range(0,30):
-#         letter_idx = random.randint(0,len(letters)-1)
-#         expression += letters[letter_idx]
-#     print(expression)
-#     reward = costCalculator.calReward(expression)
-# print(reward)

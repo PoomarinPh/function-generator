@@ -55,7 +55,7 @@ class PolicyGradientModel:
             averageLoss = 0.0
             for it in range(numIterationPerEpoch):
                 # Predict an output sequence
-                modelOutput, probHistory = self.predictOutputSequence(input)
+                modelOutput, probHistory, inputSequence = self.predictOutputSequence(np.copy(input))
                 outputLength = len(modelOutput)
 
                 # Save state of current sequence
@@ -69,21 +69,31 @@ class PolicyGradientModel:
                 reward = self.rewardCalculator.calReward(''.join(outputAlphabet))
                 gradients = np.vstack(self.gradients)
                 gradients *= reward
-                X = np.ones((outputLength,1,1))
                 reshapedOutputProbsHistory = np.array(self.outputProbsHistory).reshape(outputLength, self.numSymbol)
                 Y = reshapedOutputProbsHistory + self.learningRate * np.squeeze(np.vstack([gradients]))
+                Y = Y.reshape(Y.shape[0], Y.shape[1])
                 self.model.reset_states()
-                loss = self.model.train_on_batch(X, Y)
+                loss = self.model.train_on_batch(inputSequence, Y)
                 averageLoss += loss
                 self.__resetHistory()
 
             averageLoss /= numIterationPerEpoch
             print("Epoch: %d\tLoss: %s\tExample Output: %s\tExample Reward: " %(ep, averageLoss, ''.join(outputAlphabet)),reward)
-
+            if ep % 50 == 0:
+                print("Prob")
+                for i in range(len(probHistory)):
+                    print(probHistory[i])
+                print("Gradient")
+                print(gradients)
+            
             if ep % numEpochToSaveWeight == 0:
                 print("Saving Weight")
                 self.saveWeight()
 
+    def __toOneHot(self, idx):
+        onehot = np.zeros((self.numSymbol))
+        onehot[idx] = 1
+        return onehot
 
     def predictOutputSequence(self, input):
         """
@@ -95,22 +105,39 @@ class PolicyGradientModel:
         """
         outputs = []
         outputProbHistory = []
+        inputSequence = []
         self.model.reset_states()
         for i in range(self.maxLength):
             outputProb = self.model.predict(input, batch_size=1)
             outputProbHistory.append(outputProb)
             normalizedProb = outputProb / np.sum(outputProb)
 
+            inputSequence.append(np.copy(input).reshape(input.shape[1], input.shape[2]))
+
             # Random from distribution instead of getting max
             # Due to it's not supervised learning where output is correct/incorrect
             # Output is action. It can be both correct or incorrect
             # Source: http://karpathy.github.io/2016/05/31/rl/
             output = np.random.choice(self.numSymbol, 1, p=normalizedProb.reshape((self.numSymbol)))[0]
-            #print('Output = ', self.allowedSymbol[output])
+            # print('Output = ', self.allowedSymbol[output])
+            onehotOutput = self.__toOneHot(output)
+            input[0, i, :] = onehotOutput
+
+            # print(onehotOutput)
+            # print(input)
+
+
+
             outputs.append(output)
             if self.allowedSymbol[output] == '#':
                 break
-        return outputs, outputProbHistory
+
+                #         for i in range(len(inputSequence)):
+                #             print(inputSequence[i])
+        inputSequence = np.array(inputSequence)
+        #         print(inputSequence.shape)
+
+        return outputs, outputProbHistory, inputSequence
 
     def saveWeight(self):
         '''
@@ -118,11 +145,14 @@ class PolicyGradientModel:
         '''
         self.model.save(self.fileName)
 
-    def loadWeight(self):
+    def loadWeight(self, filename=None):
         '''
         Load weight of the model from the path specified at init
         '''
-        self.model.load_weights(self.fileName)
+        if filename==None:
+            self.model.load_weights(self.fileName)
+        else:
+            self.model.load_weights(filename)
 
     def __resetHistory(self):
         self.outputSequenceHistory = []
